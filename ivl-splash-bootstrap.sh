@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# IV League - ONE FILE BOOTSTRAP (Splash + Login + Tailwind)
+# IV League - PRO ONE-FILE BOOTSTRAP (Splash + Login + Tailwind + Fonts)
 # Usage:
-#   1) Add this file to an empty GitHub repo as: ivl-onefile.sh
-#   2) (Optional) Upload your crest as: public/iv-league-logo.png
-#   3) Run: bash ivl-onefile.sh && npm install && npm run dev
+#   1) Add this file to an empty GitHub repo as: ivl-pro-bootstrap.sh
+#   2) Run: bash ivl-pro-bootstrap.sh && npm install && npm run dev
+#   3) (Optional) Upload your crest to: public/iv-league-logo.png
 
 if [ -e package.json ]; then
   echo "package.json already exists. Aborting to avoid overwriting." >&2
   exit 1
 fi
 
-mkdir -p src/app src/app/login src/app/api/leaderboard src/components src/lib public
+mkdir -p src/app src/app/login src/components public
 
 ############################
 # Project config files
@@ -21,7 +21,7 @@ cat > package.json << 'PKG'
 {
   "name": "iv-league",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -89,7 +89,6 @@ export default <Config>{
         gold: { 400:'#d4af37',500:'#bfa12f',600:'#9f8727' },
         crimson: '#8C1D18', royal: '#27408B', purple: '#4B2E83'
       },
-      fontFamily: { serif: ['EB Garamond', 'Georgia', 'serif'] },
       keyframes: {
         'fade-in-scale': {
           '0%':   { opacity: '0', transform: 'scale(0.96)' },
@@ -99,7 +98,7 @@ export default <Config>{
         'fade-in': { '0%': { opacity: '0' }, '100%': { opacity: '1' } }
       },
       animation: {
-        'fade-in-scale': 'fade-in-scale 1200ms ease-out forwards',
+        'fade-in-scale': 'fade-in-scale 1100ms cubic-bezier(0.22, 1, 0.36, 1) forwards',
         'fade-in': 'fade-in 800ms ease-out forwards'
       }
     }
@@ -115,16 +114,16 @@ cat > next-env.d.ts << 'NXTENV'
 NXTENV
 
 cat > README.md << 'README'
-# IV League (Splash + Login)
+# IV League (Pro Splash + Login)
 
-- Splash page fades in crest (`/public/iv-league-logo.png`) and routes to `/login`.
-- Tailwind Ivy theme + animations.
-- A fallback SVG crest is provided at `/public/iv-crest.svg`.
+- Elegant splash (crest fade/zoom), then route to `/login`
+- Polished login card, Tailwind Ivy palette, professional typography
+- Fallback crest at `/public/iv-crest.svg`; replace with `/public/iv-league-logo.png`
 
 ## Dev
 npm install
 npm run dev
-# open http://localhost:3000
+# open http://localhost:3000 (or Codespaces forwarded port)
 README
 
 ############################
@@ -135,17 +134,42 @@ cat > src/app/globals.css << 'CSS'
 @tailwind components;
 @tailwind utilities;
 
+/* Brand palette applied via Tailwind config */
 :root { --bg: #0e1c10; --fg: #f3f6f3; }
-body { @apply bg-ivy-900 text-ivy-50 font-serif; }
 
-.card { @apply bg-ivy-800/70 border border-gold-600 rounded-lg shadow-lg; }
+html, body { height: 100%; }
+body { background-color: var(--bg); color: var(--fg); }
+
+/* Shared UI atoms */
+.card { @apply bg-ivy-800/70 border border-gold-600/80 rounded-2xl shadow-xl backdrop-blur-sm; }
 .h1 { @apply text-3xl md:text-4xl font-semibold tracking-wide text-gold-400; }
+.input {
+  @apply w-full px-3 py-2 rounded-lg bg-ivy-900/80 border border-ivy-700
+         focus:outline-none focus:border-gold-500 transition;
+}
+.btn-primary {
+  @apply w-full py-2.5 rounded-lg bg-gold-500 text-ivy-900 font-semibold
+         hover:bg-gold-400 transition;
+}
+.btn-outline {
+  @apply w-full py-2.5 rounded-lg border border-ivy-700 hover:border-gold-500 transition;
+}
 .link { @apply text-gold-400 hover:text-gold-500 underline; }
+
+/* Noise + vignette background helpers */
+.bg-noise {
+  background-image:
+    radial-gradient(ellipse at center, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0) 60%);
+}
 CSS
 
 cat > src/app/layout.tsx << 'LAYOUT'
 import './globals.css'
 import type { Metadata } from 'next'
+import { EB_Garamond, Inter } from 'next/font/google'
+
+const garamond = EB_Garamond({ subsets: ['latin'], variable: '--font-garamond' })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
   title: 'IV League',
@@ -154,8 +178,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className={`${garamond.variable} ${inter.variable}`}>
+      <body style={{ minHeight: '100vh' }}>{children}</body>
     </html>
   )
 }
@@ -169,21 +193,25 @@ cat > src/components/CrestLogo.tsx << 'CREST'
 import { useState } from 'react'
 
 /**
- * Shows /iv-league-logo.png if present.
- * If it fails to load, falls back to /iv-crest.svg (included).
+ * Shows /iv-league-logo.png if present; falls back to /iv-crest.svg.
+ * Uses <img> for simple onError fallback. Sized via props.
  */
-export function CrestLogo({ size = 192, className = '' }: { size?: number; className?: string }) {
+export function CrestLogo({
+  size = 200,
+  className = '',
+  alt = 'IV League crest'
+}: { size?: number; className?: string; alt?: string }) {
   const [src, setSrc] = useState('/iv-league-logo.png')
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
+      onError={() => setSrc('/iv-crest.svg')}
       width={size}
       height={size}
-      alt="IV League crest"
+      alt={alt}
       className={className}
-      onError={() => setSrc('/iv-crest.svg')}
-      style={{ objectFit: 'contain' }}
+      style={{ objectFit: 'contain', display: 'block' }}
     />
   )
 }
@@ -201,26 +229,29 @@ import { CrestLogo } from '@/components/CrestLogo'
 
 export default function Splash() {
   const router = useRouter()
+
   useEffect(() => {
     const t = setTimeout(() => router.push('/login'), 1800)
     return () => clearTimeout(t)
   }, [router])
 
   return (
-    <main className="min-h-screen grid place-items-center relative overflow-hidden">
-      {/* Vignette / subtle texture */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.06)_0%,rgba(0,0,0,0)_60%)]" />
+    <main className="min-h-screen relative grid place-items-center overflow-hidden">
+      {/* Subtle vignette */}
+      <div className="pointer-events-none absolute inset-0 bg-noise" />
       <div
         className="pointer-events-none absolute inset-0"
         style={{ backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0))' }}
       />
 
+      {/* Logo with fade/scale */}
       <div className="motion-reduce:animate-none animate-fade-in-scale">
-        <CrestLogo size={224} />
+        <CrestLogo size={220} className="mx-auto drop-shadow-xl" />
       </div>
 
+      {/* Caption */}
       <p
-        className="mt-6 text-ivy-200/80 absolute bottom-10 text-sm motion-reduce:hidden animate-fade-in"
+        className="absolute bottom-10 text-sm text-ivy-200/80 motion-reduce:hidden animate-fade-in"
         style={{ animationDelay: '900ms' }}
       >
         Entering the IV League…
@@ -243,25 +274,33 @@ export default function LoginPage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: Connect to NextAuth/Clerk or your API
+    // TODO: Connect to real auth (NextAuth/Clerk)
     alert(\`Logging in as \${email}\`)
   }
 
   return (
-    <main className="min-h-screen grid place-items-center">
+    <main className="min-h-screen grid place-items-center px-4">
       <div className="w-full max-w-md">
-        <div className="flex justify-center mb-6">
+        <div className="flex flex-col items-center gap-4 mb-6">
           <CrestLogo size={96} />
+          <div className="text-center">
+            <h1 className="h1" style={{ fontFamily: 'var(--font-garamond), serif' }}>IV League</h1>
+            <p className="opacity-80 -mt-1" style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
+              Compete by House. Win trophies. Master the markets.
+            </p>
+          </div>
         </div>
 
         <div className="card p-6">
-          <h1 className="h1 mb-4">Welcome back</h1>
+          <h2 className="text-xl font-semibold text-gold-400 mb-4" style={{ fontFamily: 'var(--font-garamond), serif' }}>
+            Welcome back
+          </h2>
 
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <label className="block text-sm mb-1">Email</label>
               <input
-                className="w-full px-3 py-2 rounded bg-ivy-900 border border-ivy-700 focus:outline-none focus:border-gold-500"
+                className="input"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
@@ -273,7 +312,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-sm mb-1">Password</label>
               <input
-                className="w-full px-3 py-2 rounded bg-ivy-900 border border-ivy-700 focus:outline-none focus:border-gold-500"
+                className="input"
                 type="password"
                 placeholder="••••••••"
                 value={pwd}
@@ -282,26 +321,22 @@ export default function LoginPage() {
               />
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-2 rounded bg-gold-500 text-ivy-900 font-semibold hover:bg-gold-400"
-            >
-              Log in
-            </button>
+            <button type="submit" className="btn-primary">Log in</button>
 
             <div className="text-center text-sm opacity-80">Or</div>
 
             <button
               type="button"
-              className="w-full py-2 rounded border border-ivy-700 hover:border-gold-500"
+              className="btn-outline"
               onClick={() => alert('Wire this to GitHub OAuth (NextAuth)')}
+              aria-label="Continue with GitHub"
             >
               Continue with GitHub
             </button>
           </form>
 
           <p className="text-sm opacity-80 mt-4 text-center">
-            New here? /signupCreate an account</Link>
+            New here? #Create an account</Link>
           </p>
         </div>
       </div>
@@ -309,21 +344,6 @@ export default function LoginPage() {
   )
 }
 LOGIN
-
-############################
-# Optional mock API (kept for future)
-############################
-cat > src/app/api/leaderboard/route.ts << 'API'
-import { NextResponse } from 'next/server'
-export async function GET() {
-  const rows = [
-    { rank: 1, name: '@volsmith', house: 'VEGA', score: 92.4 },
-    { rank: 2, name: '@delta_dan', house: 'DELTA', score: 88.7 },
-    { rank: 3, name: '@thetaqueen', house: 'THETA', score: 86.1 }
-  ]
-  return NextResponse.json({ rows })
-}
-API
 
 ############################
 # Fallback crest SVG (shows if PNG missing)
@@ -353,4 +373,4 @@ cat > public/iv-crest.svg << 'SVG'
 </svg>
 SVG
 
-echo "Done. Now run: npm install && npm run dev"
+echo "✅ Project scaffolded. Now run: npm install && npm run dev"
