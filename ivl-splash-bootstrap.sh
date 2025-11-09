@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# IV League single-file bootstrap (Splash + Login)
+# IV League - ONE FILE BOOTSTRAP (Splash + Login + Tailwind)
 # Usage:
-#   1) Add this file to an empty GitHub repo as ivl-splash-bootstrap.sh
-#   2) (Recommended) Upload your crest to public/iv-league-logo.png
-#   3) Run in Codespaces or locally: bash ivl-splash-bootstrap.sh
-#      It will scaffold a Next.js app with a splash screen and a /login page.
+#   1) Add this file to an empty GitHub repo as: ivl-onefile.sh
+#   2) (Optional) Upload your crest as: public/iv-league-logo.png
+#   3) Run: bash ivl-onefile.sh && npm install && npm run dev
 
 if [ -e package.json ]; then
-  echo "Looks like files already exist here. Aborting to avoid overwrite." >&2
+  echo "package.json already exists. Aborting to avoid overwriting." >&2
   exit 1
 fi
 
-mkdir -p src/app/api/leaderboard src/app/login src/app src/components src/lib public
+mkdir -p src/app src/app/login src/app/api/leaderboard src/components src/lib public
 
-# ----- package & config -----
+############################
+# Project config files
+############################
 cat > package.json << 'PKG'
 {
   "name": "iv-league",
@@ -73,6 +74,10 @@ cat > tsconfig.json << 'TSCFG'
 }
 TSCFG
 
+cat > postcss.config.js << 'POSTCSS'
+module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }
+POSTCSS
+
 cat > tailwind.config.ts << 'TWCFG'
 import type { Config } from 'tailwindcss'
 export default <Config>{
@@ -103,10 +108,6 @@ export default <Config>{
 }
 TWCFG
 
-cat > postcss.config.js << 'POSTCSS'
-module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }
-POSTCSS
-
 cat > next-env.d.ts << 'NXTENV'
 /// <reference types="next" />
 /// <reference types="next/image-types/global" />
@@ -114,18 +115,21 @@ cat > next-env.d.ts << 'NXTENV'
 NXTENV
 
 cat > README.md << 'README'
-# IV League (Splash + Login bootstrap)
+# IV League (Splash + Login)
 
-## Run (Codespaces or local)
-bash ivl-splash-bootstrap.sh
+- Splash page fades in crest (`/public/iv-league-logo.png`) and routes to `/login`.
+- Tailwind Ivy theme + animations.
+- A fallback SVG crest is provided at `/public/iv-crest.svg`.
+
+## Dev
 npm install
 npm run dev
-
-- Put your crest at: public/iv-league-logo.png
-- Splash page fades the crest in and routes to /login
+# open http://localhost:3000
 README
 
-# ----- styles & layout -----
+############################
+# Styles & layout
+############################
 cat > src/app/globals.css << 'CSS'
 @tailwind base;
 @tailwind components;
@@ -133,6 +137,7 @@ cat > src/app/globals.css << 'CSS'
 
 :root { --bg: #0e1c10; --fg: #f3f6f3; }
 body { @apply bg-ivy-900 text-ivy-50 font-serif; }
+
 .card { @apply bg-ivy-800/70 border border-gold-600 rounded-lg shadow-lg; }
 .h1 { @apply text-3xl md:text-4xl font-semibold tracking-wide text-gold-400; }
 .link { @apply text-gold-400 hover:text-gold-500 underline; }
@@ -150,21 +155,49 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
 LAYOUT
 
-# ----- Splash page -----
+############################
+# Components
+############################
+cat > src/components/CrestLogo.tsx << 'CREST'
+'use client'
+import { useState } from 'react'
+
+/**
+ * Shows /iv-league-logo.png if present.
+ * If it fails to load, falls back to /iv-crest.svg (included).
+ */
+export function CrestLogo({ size = 192, className = '' }: { size?: number; className?: string }) {
+  const [src, setSrc] = useState('/iv-league-logo.png')
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      width={size}
+      height={size}
+      alt="IV League crest"
+      className={className}
+      onError={() => setSrc('/iv-crest.svg')}
+      style={{ objectFit: 'contain' }}
+    />
+  )
+}
+CREST
+
+############################
+# Pages
+############################
 cat > src/app/page.tsx << 'SPLASH'
 'use client'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+import { CrestLogo } from '@/components/CrestLogo'
 
 export default function Splash() {
   const router = useRouter()
@@ -175,15 +208,17 @@ export default function Splash() {
 
   return (
     <main className="min-h-screen grid place-items-center relative overflow-hidden">
-      {/* Subtle vignette */}
+      {/* Vignette / subtle texture */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.06)_0%,rgba(0,0,0,0)_60%)]" />
-      <div className="pointer-events-none absolute inset-0" style={{
-        backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0))'
-      }} />
-      {/* Crest with fade/scale animation */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0))' }}
+      />
+
       <div className="motion-reduce:animate-none animate-fade-in-scale">
-        /iv-league-logo.png
+        <CrestLogo size={224} />
       </div>
+
       <p
         className="mt-6 text-ivy-200/80 absolute bottom-10 text-sm motion-reduce:hidden animate-fade-in"
         style={{ animationDelay: '900ms' }}
@@ -195,13 +230,12 @@ export default function Splash() {
 }
 SPLASH
 
-# ----- Login page -----
 cat > src/app/login/page.tsx << 'LOGIN'
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
+import { CrestLogo } from '@/components/CrestLogo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -209,7 +243,7 @@ export default function LoginPage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: replace with real auth (NextAuth/Clerk)
+    // TODO: Connect to NextAuth/Clerk or your API
     alert(\`Logging in as \${email}\`)
   }
 
@@ -217,7 +251,7 @@ export default function LoginPage() {
     <main className="min-h-screen grid place-items-center">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-6">
-          <iv-league-logo.png
+          <CrestLogo size={96} />
         </div>
 
         <div className="card p-6">
@@ -235,6 +269,7 @@ export default function LoginPage() {
                 required
               />
             </div>
+
             <div>
               <label className="block text-sm mb-1">Password</label>
               <input
@@ -247,7 +282,10 @@ export default function LoginPage() {
               />
             </div>
 
-            <button type="submit" className="w-full py-2 rounded bg-gold-500 text-ivy-900 font-semibold hover:bg-gold-400">
+            <button
+              type="submit"
+              className="w-full py-2 rounded bg-gold-500 text-ivy-900 font-semibold hover:bg-gold-400"
+            >
               Log in
             </button>
 
@@ -272,7 +310,9 @@ export default function LoginPage() {
 }
 LOGIN
 
-# ----- (Optional) mock API so /api/leaderboard works if you keep it later -----
+############################
+# Optional mock API (kept for future)
+############################
 cat > src/app/api/leaderboard/route.ts << 'API'
 import { NextResponse } from 'next/server'
 export async function GET() {
@@ -285,11 +325,32 @@ export async function GET() {
 }
 API
 
-# ----- done; auto-install if npm is available -----
-if command -v npm >/dev/null 2>&1; then
-  echo "Installing dependencies (this may take a minute)..."
-  npm install
-  echo "Starting dev server..."
-  npm run dev
-else
-  echo "Files created. Run 'npm install && npm run dev' to start."
+############################
+# Fallback crest SVG (shows if PNG missing)
+############################
+cat > public/iv-crest.svg << 'SVG'
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#25402a"/>
+      <stop offset="100%" stop-color="#0e1c10"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="transparent"/>
+  <g transform="translate(60,40)">
+    <path d="M240 0c75 40 150 40 240 40v220c0 130-80 230-240 300C80 490 0 390 0 260V40c90 0 165 0 240-40z" fill="url(#g)" stroke="#d4af37" stroke-width="12" />
+    <!-- Ivy branch -->
+    <path d="M80 340c40-60 30-110 30-200" stroke="#d4af37" stroke-width="8" fill="none"/>
+    <circle cx="92" cy="180" r="20" fill="#0e1c10" stroke="#d4af37" stroke-width="6"/>
+    <circle cx="100" cy="240" r="16" fill="#0e1c10" stroke="#d4af37" stroke-width="6"/>
+    <circle cx="86" cy="300" r="14" fill="#0e1c10" stroke="#d4af37" stroke-width="6"/>
+    <!-- IV letters -->
+    <text x="180" y="260" font-family="Georgia, serif" font-size="180" fill="#d4af37" font-weight="700">IV</text>
+    <!-- Ribbon -->
+    <path d="M20 360c100-40 340-40 440 0l-10 50c50 20 70 30 90 44-20 14-40 29-46 34l16 62c-42-18-84-30-126-38l12-22c-50-8-140-10-180-10-40 0-80 2-130 10l12 22c-42 8-84 20-126 38l16-62c-6-5-26-20-46-34 20-14 40-24 90-44z" fill="#0e1c10" stroke="#d4af37" stroke-width="8"/>
+    <text x="140" y="420" font-family="Georgia, serif" font-size="72" fill="#d4af37" font-weight="700" letter-spacing="4">LEAGUE</text>
+  </g>
+</svg>
+SVG
+
+echo "Done. Now run: npm install && npm run dev"
